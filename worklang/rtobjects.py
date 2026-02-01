@@ -7,6 +7,7 @@ class Primitives(enum.Enum):
     Bool = 3
     Runnable = 4
     Module = 5
+    Sentinel = 6
     Nil = -67
 
 class WLObject:
@@ -26,4 +27,6 @@ class WLObject:
             return str(self.value)
         else:
             return repr(self.object_type)
+
 NIL = WLObject(Primitives.Nil)
+ITERSTOP = WLObject(Primitives.Sentinel)

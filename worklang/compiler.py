@@ -126,6 +126,12 @@ class Compiler:
 
         self.module_cache: dict[str, Module] = {}
 
+        self._uid = 0
+
+    def get_uid(self):
+        self._uid += 1
+        return self._uid
+
     def compile_module(self, module_ast: list[Node]):
         self.module_stack.append(Module())
         bytecode = bytearray()
@@ -183,8 +189,26 @@ class Compiler:
         return bytearray([*self.visit_node(node.value), Opcodes.RETURN])
 
     def visit_node_ForNode(self, node: ForNode):
+        """
+        _temp_123123 = iterator(thing)
+        :l
+            get _temp_123123
+            getattr "_iter_next"
+            dup
+            invoke 0
+            iterstop
+            eq
+            jmpif :end
+            set forvar
+            LOOP_BODY
+            jmp :l
+        :end
+            pop
+        """
+        iter_varname = f"_temp_iter_{self.get_uid()}"
+        intro = bytearray()
         assert False
-        return bytearray([])
+        
 
     def visit_node_AnonProcDeclNode(self, node: AnonProcDeclNode):
         bytecode = bytearray()
