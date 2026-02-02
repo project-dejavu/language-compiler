@@ -1,6 +1,7 @@
 import enum
 import struct
 from typing import Any, cast
+from .parser import BinOpType
 
 class Encoder:
     @classmethod
@@ -83,7 +84,8 @@ class Assemblah:
     @classmethod
     def compile(cls, *instructions: tuple[I, *tuple[Any, ...]]) -> bytearray | bytes:
         code = bytearray()
-        label_second_run = {}
+        labels: dict[str, int] = {}
+        post_run: dict[int, str] = {}
 
         for instr in instructions:
             if instr[0] == I.PushConst:
@@ -92,6 +94,14 @@ class Assemblah:
             elif instr[0] == I.Get:
                 ptr = cast(int, instr[1])
                 code.extend([Opcodes.GET, *Encoder.int32(ptr)])
+            elif instr[0] == I.Set:
+                ptr = cast(int, instr[1])
+                code.extend([Opcodes.SET, *Encoder.int32(ptr)])
+            elif instr[0] == I.BinOp:
+                code.append({
+                    BinOpType.Add: Opcodes.ADD,
+                    BinOpType.Lt: Opcodes.LESSTHAN
+                }[cast(BinOpType, instr[1])])
             elif instr[0] == I.Bytecode:
                 bc = cast(bytearray, instr[1])
                 code.extend(bc)
@@ -100,7 +110,27 @@ class Assemblah:
                 code.extend([Opcodes.INVOKE, *Encoder.int16(args)])
             elif instr[0] == I.Discard:
                 code.append(Opcodes.DISCARD)
+            elif instr[0] == I.Label:
+                label = cast(str, instr[1])
+                assert label not in labels
+                labels[label] = len(code)
+            elif instr[0] == I.LogicNot:
+                code.append(Opcodes.LOGICNOT)
+            elif instr[0] == I.JumpIf:
+                pos = cast(str, instr[1])
+                code.append(Opcodes.JMP_IF)
+                code.extend([0]*4)
+                post_run[len(code)] = pos
+            elif instr[0] == I.Jump:
+                pos = cast(str, instr[1])
+                code.append(Opcodes.JMP)
+                code.extend([0]*4)
+                post_run[len(code)] = pos
             else:
                 raise ValueError(f"Unknown instruction {instr}")
+        
+        for addr_write, label in post_run.items():
+            dest = labels[label]
+            code[addr_write-4:addr_write] = Encoder.int32_signed(dest-addr_write)
         
         return code

@@ -141,7 +141,7 @@ class RunnableContext:
             r.parent_scope = self
         elif opcode == Opcodes.LOGICNOT:
             v = self.stack.pop()
-            assert v.object_type == Primitives.Bool
+            assert v.object_type == Primitives.Bool, f"got {v}"
             self.stack.append(WLObject(Primitives.Bool, not v.value)) # type: ignore
         elif opcode == Opcodes.JMP_IF:
             cond = self.stack.pop()
