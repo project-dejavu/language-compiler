@@ -1,35 +1,8 @@
 from .parser import Node, CallNode, ConstNode, IdenNode, ModuleDeclNode, DiscardNode, BinOpNode, AnonProcDeclNode, AssignNode, ForNode, ReturnNode, AssignAndReturnNode, AttrNode, WhileNode, TagNode, UseNode, BinOpType
-import struct
 from dataclasses import dataclass
+from .assemblah import Assemblah, I, Encoder
 
 MAGIC = b"Wklg\00\01\02\03"
-
-class Encoder:
-    @classmethod
-    def str(cls, s: str):
-        encoded = s.encode()
-        return cls.int32(len(encoded)) + encoded
-    
-    @classmethod
-    def int32_signed(cls, i: int):
-        return i.to_bytes(4, "big", signed=True)
-
-    @classmethod
-    def int32(cls, i: int):
-        return i.to_bytes(4, "big")
-    @classmethod
-    def int16(cls, i: int):
-        return i.to_bytes(2, "big")
-    @classmethod
-    def varint(cls, i: int):
-        if i == 0:
-            return bytearray([1, 0])
-        b = i.to_bytes((i.bit_length() + 8) // 8, "big", signed=True)
-        return bytearray([len(b), *b])
-
-    @classmethod
-    def float(cls, f: float):
-        return struct.pack("f", f)
 
 @dataclass
 class RunnableEntry:
@@ -42,34 +15,6 @@ class ConstEntry:
     STRING = 3
     RUNNABLE = 4
 
-class Opcodes:
-    NOP = 0x00 # not used by compiler, but must be implemented in VM
-    PUSH_CONST = 0x01
-    PUSH_NIL = 0x02
-    DUP = 0x03
-
-    GET = 0x0A
-    SET_GLOBAL = 0x0B
-    SET = 0x0C
-
-    INVOKE = 0x10
-    INJECT_PARENT_SCOPE = 0x11
-
-    ADD = 0x20
-    MULTIPLY = 0x21
-    SUB = 0x22
-    DIV = 0x23
-    LESSTHAN = 0x24
-
-    LOGICNOT = 0x30
-
-    GETATTR = 0x40
-
-    JMP = 0x50
-    JMP_IF = 0x51
-
-    RETURN = 0x7F
-    DISCARD = 0x80
 
 CONST_TYPE = int | float | str | RunnableEntry
 
@@ -165,28 +110,52 @@ class Compiler:
 
         name_ptr = self.module_stack[-1].push_const(to.iden)
 
-        return bytearray([Opcodes.SET, *Encoder.int32(name_ptr)])
+        return Assemblah.compile(
+            (I.Set, name_ptr)
+        )
 
     def visit_node_AssignNode(self, node: AssignNode):
-        return bytearray([*self.visit_node(node.value), *self.assign_node_setter(node.to)])
+        return Assemblah.compile(
+            (I.Bytecode, self.visit_node(node.value)), 
+            (I.Bytecode, self.assign_node_setter(node.to))
+        )
 
     def visit_node_AttrNode(self, node: AttrNode):
         attr_ptr = self.module_stack[-1].push_const(node.attr)
-        return bytearray([*self.visit_node(node.obj), Opcodes.GETATTR, *Encoder.int32(attr_ptr)])
+        return Assemblah.compile(
+            (I.Bytecode, self.visit_node(node.obj)),
+            (I.GetAttr, attr_ptr)
+        )
 
     def visit_node_AssignAndReturnNode(self, node: AssignAndReturnNode):
-        return bytearray([*self.visit_node(node.value), Opcodes.DUP, *self.assign_node_setter(node.to)])
+        return Assemblah.compile(
+            (I.Bytecode, self.visit_node(node.value)),
+            (I.Dup,),
+            (I.Bytecode, self.assign_node_setter(node.to))
+        )
 
     def visit_node_WhileNode(self, node: WhileNode):
         body = b"".join(self.visit_node(x) for x in node.body)
-        intro = bytearray([*self.visit_node(node.cond), Opcodes.LOGICNOT, Opcodes.JMP_IF, *Encoder.int32_signed(len(body) + 5)])
-        outro = bytearray([Opcodes.JMP, *Encoder.int32_signed(-len(intro)-len(body)-5)])
-        return bytearray([*intro, *body, *outro])
+        return Assemblah.compile(
+            (I.Label, "before_while"),
+            (I.Bytecode, self.visit_node(node.cond)),
+            (I.LogicNot,),
+            (I.JumpIf, "after_while"),
+            (I.Bytecode, body),
+            (I.Jump, "before_while"),
+            (I.Label, "after_while")
+        )
 
     def visit_node_ReturnNode(self, node: ReturnNode):
         if node.value is None:
-            return bytearray([Opcodes.PUSH_NIL, Opcodes.RETURN])
-        return bytearray([*self.visit_node(node.value), Opcodes.RETURN])
+            return Assemblah.compile(
+                (I.PushNil,),
+                (I.Return,)
+            )
+        return Assemblah.compile(
+            (I.Bytecode, self.visit_node(node.value)),
+            (I.Return,)
+        )
 
     def visit_node_ForNode(self, node: ForNode):
         """
@@ -194,8 +163,8 @@ class Compiler:
         :l
             get _temp_123123
             getattr "_iter_next"
-            dup
             invoke 0
+            dup
             iterstop
             eq
             jmpif :end
@@ -205,9 +174,28 @@ class Compiler:
         :end
             pop
         """
-        iter_varname = f"_temp_iter_{self.get_uid()}"
-        intro = bytearray()
-        assert False
+        iter_varname_ptr = self.module_stack[-1].push_const(f"_temp_iter_{self.get_uid()}")
+        attr_ptr = self.module_stack[-1].push_const(f"_iter_next")
+        forvar_ptr = self.module_stack[-1].push_const(node.var)
+        
+        return Assemblah.compile(
+            (I.Bytecode, self.visit_node(node.value)),
+            (I.Get, "_Сис_Итератор"),
+            (I.Invoke, 1),
+            (I.Set, iter_varname_ptr),
+        (I.Label, "before"),
+            (I.Get, iter_varname_ptr),
+            (I.GetAttr, attr_ptr),
+            (I.Invoke, 0),
+            (I.IterStopSentinel,),
+            (I.Equ,),
+            (I.JumpIf, "end"),
+            (I.Set, forvar_ptr),
+            *map(lambda x: (I.Bytecode, self.visit_node(x)), node.body),
+            (I.Jump, "before"),
+        (I.Label, "end"),
+            (I.Discard,)
+        )
         
 
     def visit_node_AnonProcDeclNode(self, node: AnonProcDeclNode):
@@ -218,42 +206,47 @@ class Compiler:
 
         ptr_runnable = self.module_stack[-1].push_const(RunnableEntry(node.args, bytecode))
 
-        return bytearray([Opcodes.PUSH_CONST, *Encoder.int32(ptr_runnable), Opcodes.INJECT_PARENT_SCOPE])
+        return Assemblah.compile(
+            (I.PushConst, ptr_runnable),
+            (I.InjectParentScope,)
+        )
 
     def visit_node_ModuleDeclNode(self, node: ModuleDeclNode):
         self.module_stack[-1].set_name(".".join(node.modname))
         return bytearray()
 
     def visit_node_CallNode(self, node: CallNode):
-        result = bytearray()
-
-        for arg in node.args:
-            result.extend(self.visit_node(arg))
-        result.extend(self.visit_node(node.callee))
-        result.append(Opcodes.INVOKE)
-        result.extend(Encoder.int16(len(node.args)))
-
-        return result
+        return Assemblah.compile(
+            *map(lambda x: (I.Bytecode, self.visit_node(x)), node.args),
+            (I.Bytecode, self.visit_node(node.callee)),
+            (I.Invoke, len(node.args))
+        )
     
     def visit_node_BinOpNode(self, node: BinOpNode):
-        ops = {
-            BinOpType.Add: Opcodes.ADD,
-            BinOpType.Mul: Opcodes.MULTIPLY,
-            BinOpType.Lt: Opcodes.LESSTHAN
-        }
-        return bytearray([*self.visit_node(node.left), *self.visit_node(node.right), ops[node.op]])
+        return Assemblah.compile(
+            (I.Bytecode, self.visit_node(node.left)),
+            (I.Bytecode, self.visit_node(node.right)),
+            (I.BinOp, node.op)
+        )
 
     def visit_node_DiscardNode(self, node: DiscardNode):
-        return self.visit_node(node.value) + bytearray([Opcodes.DISCARD])
+        return Assemblah.compile(
+            (I.Bytecode, self.visit_node(node.value)),
+            (I.Discard,)
+        )
     
     def visit_node_ConstNode(self, node: ConstNode):
         ptr = self.module_stack[-1].push_const(node.value)
 
-        return bytearray([Opcodes.PUSH_CONST, *Encoder.int32(ptr)])
+        return Assemblah.compile(
+            (I.PushConst, ptr)
+        )
     
     def visit_node_IdenNode(self, node: IdenNode):
         ptr = self.module_stack[-1].push_const(node.iden)
-        return bytearray([Opcodes.GET, *Encoder.int32(ptr)])
+        return Assemblah.compile(
+            (I.Get, ptr)
+        )
 
     def dump_vfs(self):
         vfs: dict[str, bytearray | bytes] = {}

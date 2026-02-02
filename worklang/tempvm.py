@@ -1,7 +1,8 @@
 import enum
 import importlib
 from typing import cast
-from .compiler import ConstEntry, Opcodes
+from .compiler import ConstEntry
+from .assemblah import Opcodes
 from .rtobjects import *
 
 class Runnable:
