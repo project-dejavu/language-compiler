@@ -1,87 +1,104 @@
 from .lexer import TokenType, Token, Keyword
 from .types import BinOpType, Span
+from dataclasses import dataclass
+from typing import Union
 
+CONST_TYPE = Union[str | int | float | bool]
+
+@dataclass
 class Node:
-    def __repr__(self):
-        props = list(filter(lambda x: not x.startswith("__"), dir(self)))
-        pairs = list((f"{prop}={repr(getattr(self, prop))}" for prop in props))
-        return self.__class__.__name__ + f"({', '.join(pairs)})"
+    span: Span
 
+@dataclass
 class CallNode(Node):
-    def __init__(self, callee: Node, args: list[Node]):
-        self.callee = callee
-        self.args = args
+    callee: Node
+    args: list[Node]
 
+    lpar_span: Span
+    rpar_span: Span
+
+@dataclass
 class IdenNode(Node):
-    def __init__(self, iden: str):
-        self.iden = iden
+    iden: str
 
+@dataclass
 class ConstNode(Node):
-    def __init__(self, value: str | int | float | bool):
-        self.value = value
+    value: CONST_TYPE
 
-class DiscardNode(Node):
-    def __init__(self, value: Node):
-        self.value = value
+@dataclass
+class StatementNode(Node):
+    value: Node
 
-class ModuleDeclNode(Node):
-    def __init__(self, modname: list[str]):
-        self.modname = modname
-
+@dataclass
 class BinOpNode(Node):
-    def __init__(self, left: Node, op: BinOpType, right: Node):
-        self.left = left
-        self.op = op
-        self.right = right
+    left: Node
+    op: BinOpType
+    right: Node
 
+    op_span: Span
+
+@dataclass
 class ReturnNode(Node):
-    def __init__(self, value: Node | None):
-        self.value = value
+    value: Node | None
 
+@dataclass
 class AnonProcDeclNode(Node):
-    def __init__(self, args: list[str], body: list[Node]):
-        self.args = args
-        self.body = body
+    proc_kw_span: Span
+    end_kw_span: Span
+    lpar_span: Span
+    rpar_span: Span
 
+    args: list[tuple[Span, str]]
+    body: list[Node]
+
+@dataclass
 class AssignNode(Node):
-    def __init__(self, to: Node, value: Node):
-        self.to = to
-        self.value = value
+    dest: Node
+    value: Node
 
+    eq_span: Span
+
+@dataclass
 class ForNode(Node):
-    def __init__(self, var: str, value: Node, body: list[Node]):
-        self.var = var
-        self.value = value
-        self.body = body
+    kw_span: Span
+    in_span: Span
+    end_span: Span
 
+    var: str
+    var_span: Span
+
+    value: Node
+
+    body: list[Node]
+
+@dataclass
 class UseNode(Node):
-    def __init__(self, name: list[str], as_name: str):
-        self.name = name
-        self.as_name = as_name
+    name: list[str]
+    name_span: Span
 
+    as_name: tuple[str, Span, Span] | None
+
+@dataclass
 class AttrNode(Node):
-    def __init__(self, obj: Node, attr: str):
-        self.obj = obj
-        self.attr = attr
+    obj: Node
+    attr: str
+    attr_span: Span
+    dot_span: Span
 
+@dataclass
 class TagNode(Node):
-    def __init__(self, tag: str, value: Node | None):
-        self.tag = tag
-        self.value = value
+    colon_span: Span
+    tag: str
+    tag_span: Span
+    value: tuple[Node, Span, Span] | None
 
-class AssignAndReturnNode(Node):
-    def __init__(self, to: Node, value: Node):
-        self.to = to
-        self.value = value
-
+@dataclass
 class WhileNode(Node):
-    def __init__(self, cond: Node, body: list[Node]):
-        self.cond = cond
-        self.body = body
+    kw_span: Span
+    end_span: Span
 
-class DeclWrapNode(Node):
-    def __init__(self, value: Node):
-        self.value = value
+    cond: Node
+    body: list[Node]
 
 class ParserException(Exception):
     pass
