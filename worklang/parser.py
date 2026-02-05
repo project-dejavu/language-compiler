@@ -86,18 +86,20 @@ class DeclWrapNode(Node):
 class ParserException(Exception):
     pass
 
+
+EOF = Token(Span(-1, -1, 1), TokenType.EOF)
 class Parser:
     def __init__(self):
         pass
 
     def next(self, step: int = 1):
         self.idx += step
-        self.tok = self.tokens[self.idx] if self.idx < len(self.tokens) else Token(TokenType.EOF)
+        self.tok = self.tokens[self.idx] if self.idx < len(self.tokens) else EOF
 
     def run(self, tokens: list[Token]):
         self.tokens = tokens
         self.idx = -1
-        self.tok = Token(TokenType.EOF)
+        self.tok = EOF
         self.next()
 
         body: list[Node] = []

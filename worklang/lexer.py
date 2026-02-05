@@ -2,6 +2,7 @@ import string
 import enum
 from typing import Any
 from .types import Span
+from dataclasses import dataclass
 
 CYRILLIC_LOWER = ''.join(chr(c) for c in range(0x0430, 0x044F + 1))
 CYRILLIC_UPPER = ''.join(chr(c) for c in range(0x0410, 0x042F + 1))
@@ -64,16 +65,11 @@ DOUBLES_INIT = tuple(x[0][0] for x in DOUBLES.keys())
 KEYWORDS = list(x.value for x in Keyword)
 TOKENTYPES = list(x.value for x in TokenType)
 
+@dataclass
 class Token:
-    def __init__(self, span: Span, token_type: TokenType, value: Any = None):
-        self.span = span
-        self.type = token_type
-        self.value = value
-
-    def __repr__(self):
-        if self.value is not None:
-            return f'Token({self.type}, {self.value})'
-        return f'Token({self.type})'
+    span: Span
+    type: TokenType
+    value: Any = None
 
 class LexerException(Exception):
     pass
