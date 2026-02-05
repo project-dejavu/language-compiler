@@ -64,7 +64,11 @@ KEYWORDS = list(x.value for x in Keyword)
 TOKENTYPES = list(x.value for x in TokenType)
 
 class Token:
-    def __init__(self, token_type: TokenType, value: Any = None):
+    def __init__(self, line: int, col: int, length: int, token_type: TokenType, value: Any = None):
+        self.line = line
+        self.col = col
+        self.length = length
+
         self.type = token_type
         self.value = value
 
@@ -78,17 +82,25 @@ class LexerException(Exception):
 
 class Lexer:
     def __init__(self):
-        pass
+        self.reset()
+
+    def reset(self, text: str | None = None):
+        self.idx = -1
+        self.ch: str | None = None
+        self.text = text or ""
+        self.line = 1
+        self.col = 1
 
     def next(self, step: int = 1):
         self.idx += step
+        self.col += step
         self.ch = self.text[self.idx] if self.idx < len(self.text) else None
+        if self.ch == "\n":
+            self.line += 1
+            self.col = 1
 
     def run(self, data: str):
-        self.idx = -1
-        self.ch = None
-        self.text = data + "\n"
-
+        self.reset(data + "\n")
         self.next()
 
         tokens: list[Token] = []
@@ -97,26 +109,31 @@ class Lexer:
             if self.ch in WHITESPACE:
                 self.next()
             elif self.ch in TOKENTYPES:
-                tokens.append(Token(TokenType(self.ch)))
+                tokens.append(Token(self.line, self.col, 1, TokenType(self.ch)))
                 self.next()
             elif self.ch in ALL_LETTERS:
+                pos = self.col
                 iden = ""
                 while self.ch in ALL_LETTERS_DIGITS:
                     iden += self.ch
                     self.next()
 
                 if iden.lower() in KEYWORDS:
-                    tokens.append(Token(TokenType.Keyword, Keyword(iden.lower())))
+                    tokens.append(Token(self.line, pos, len(iden), TokenType.Keyword, Keyword(iden.lower())))
                 else:
-                    tokens.append(Token(TokenType.Identifier, iden))
+                    tokens.append(Token(self.line, pos, len(iden), TokenType.Identifier, iden))
             elif self.ch.isdigit():
+                pos = self.col
                 num = ""
-                while self.ch is not None and self.ch.isdigit():
+                while self.ch is not None and self.ch.isdigit(): # type: ignore
                     num += self.ch
                     self.next()
 
-                tokens.append(Token(TokenType.Number, int(num)))
+                tokens.append(Token(self.line, pos, len(num), TokenType.Number, int(num)))
             elif self.ch in "\"'":
+                pos = self.col
+                stored = self.idx
+
                 quote = self.ch
                 self.next()
 
@@ -126,15 +143,16 @@ class Lexer:
                     self.next()
                 self.next()
 
-                tokens.append(Token(TokenType.String, s))
+                tokens.append(Token(self.line, pos, self.idx-stored, TokenType.String, s))
             elif self.ch in DOUBLES_INIT:
+                pos = self.col
                 double = DOUBLES[self.ch]
                 self.next()
                 if self.ch == double[0]:
                     self.next()
-                    tokens.append(Token(double[2]))
+                    tokens.append(Token(self.line, pos, 2, double[2]))
                 else:
-                    tokens.append(Token(double[1]))
+                    tokens.append(Token(self.line, pos, 1, double[1]))
             else:
                 raise LexerException(f"Неизвестный символ '{self.ch}'")
 
