@@ -1,6 +1,7 @@
 import string
 import enum
 from typing import Any
+from .types import Span
 
 CYRILLIC_LOWER = ''.join(chr(c) for c in range(0x0430, 0x044F + 1))
 CYRILLIC_UPPER = ''.join(chr(c) for c in range(0x0410, 0x042F + 1))
@@ -64,11 +65,8 @@ KEYWORDS = list(x.value for x in Keyword)
 TOKENTYPES = list(x.value for x in TokenType)
 
 class Token:
-    def __init__(self, line: int, col: int, length: int, token_type: TokenType, value: Any = None):
-        self.line = line
-        self.col = col
-        self.length = length
-
+    def __init__(self, span: Span, token_type: TokenType, value: Any = None):
+        self.span = span
         self.type = token_type
         self.value = value
 
@@ -109,7 +107,7 @@ class Lexer:
             if self.ch in WHITESPACE:
                 self.next()
             elif self.ch in TOKENTYPES:
-                tokens.append(Token(self.line, self.col, 1, TokenType(self.ch)))
+                tokens.append(Token(Span(self.line, self.col, 1), TokenType(self.ch)))
                 self.next()
             elif self.ch in ALL_LETTERS:
                 pos = self.col
@@ -119,9 +117,9 @@ class Lexer:
                     self.next()
 
                 if iden.lower() in KEYWORDS:
-                    tokens.append(Token(self.line, pos, len(iden), TokenType.Keyword, Keyword(iden.lower())))
+                    tokens.append(Token(Span(self.line, pos, len(iden)), TokenType.Keyword, Keyword(iden.lower())))
                 else:
-                    tokens.append(Token(self.line, pos, len(iden), TokenType.Identifier, iden))
+                    tokens.append(Token(Span(self.line, pos, len(iden)), TokenType.Identifier, iden))
             elif self.ch.isdigit():
                 pos = self.col
                 num = ""
@@ -129,7 +127,7 @@ class Lexer:
                     num += self.ch
                     self.next()
 
-                tokens.append(Token(self.line, pos, len(num), TokenType.Number, int(num)))
+                tokens.append(Token(Span(self.line, pos, len(num)), TokenType.Number, int(num)))
             elif self.ch in "\"'":
                 pos = self.col
                 stored = self.idx
@@ -143,16 +141,16 @@ class Lexer:
                     self.next()
                 self.next()
 
-                tokens.append(Token(self.line, pos, self.idx-stored, TokenType.String, s))
+                tokens.append(Token(Span(self.line, pos, self.idx-stored), TokenType.String, s))
             elif self.ch in DOUBLES_INIT:
                 pos = self.col
                 double = DOUBLES[self.ch]
                 self.next()
                 if self.ch == double[0]:
                     self.next()
-                    tokens.append(Token(self.line, pos, 2, double[2]))
+                    tokens.append(Token(Span(self.line, pos, 2), double[2]))
                 else:
-                    tokens.append(Token(self.line, pos, 1, double[1]))
+                    tokens.append(Token(Span(self.line, pos, 1), double[1]))
             else:
                 raise LexerException(f"Неизвестный символ '{self.ch}'")
 

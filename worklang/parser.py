@@ -1,5 +1,5 @@
 from .lexer import TokenType, Token, Keyword
-from enum import Enum
+from .types import BinOpType, Span
 
 class Node:
     def __repr__(self):
@@ -27,13 +27,6 @@ class DiscardNode(Node):
 class ModuleDeclNode(Node):
     def __init__(self, modname: list[str]):
         self.modname = modname
-
-class BinOpType(Enum):
-    Add = 1
-    Mul = 2
-    Sub = 3
-    Div = 4
-    Lt = 5
 
 class BinOpNode(Node):
     def __init__(self, left: Node, op: BinOpType, right: Node):
