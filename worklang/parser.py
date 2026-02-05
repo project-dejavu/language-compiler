@@ -90,7 +90,7 @@ class TagNode(Node):
     colon_span: Span
     tag: str
     tag_span: Span
-    value: tuple[Node, Span, Span] | None
+    value: tuple[Span, Node] | None
 
 @dataclass
 class WhileNode(Node):
